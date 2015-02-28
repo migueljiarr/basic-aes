@@ -14,10 +14,13 @@ int main(int argc, char *argv[]){
 
   int i;
   for (i = 0; i < sizeof(buf);i++) buf[i] = i * 16 + i;
-  DUMP("txt: ", i, buf, sizeof(buf));
+  DUMP("cleartext: ", i, buf, sizeof(buf));
   subByte(buf);
+  DUMP("      sub: ", i, buf, sizeof(buf));
   shiftRows(buf);
-  DUMP("txt: ", i, buf, sizeof(buf));
+  DUMP("    shift: ", i, buf, sizeof(buf));
+  mixColumns(buf);
+  DUMP("      mix: ", i, buf, sizeof(buf));
 
   return 0;
 }

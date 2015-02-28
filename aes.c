@@ -90,3 +90,50 @@ void shiftRows(uint8_t buf[]){
   aux1=buf[12]; aux2=buf[13]; buf[12]=buf[15]; buf[13]=aux1; buf[15]=buf[14]; buf[14]=aux2; //Fourth row.
   return;
 }
+
+void multiply_GF(uint8_t *elem, uint8_t *elem2,uint8_t *elem3){
+  *elem2=*elem<<1;
+  *elem3=*elem2^*elem;
+}
+
+
+void mixColumn(uint8_t buf[], int offset){
+  assert(offset<4&&offset>=0);
+
+  uint8_t a[4],elem2,elem3;
+  int i,index=offset;
+
+  for(i=0;i<4;i++){
+    a[i]=buf[4*i+index];
+    //printf("%2x",a[i]);
+  }
+  //printf("\n");
+
+  for(i=0;(i-offset<0);i++)offset-=4;
+
+  int mul[4]={2,3,1,1};
+
+  for(i=0;i<4;i++){
+    multiply_GF(&a[i],&elem2,&elem3);
+    //printf("%x",mul[(i-offset)%4]);
+    if(mul[(i-offset)%4]==2)
+      a[i]=elem2;
+    else if(mul[(i-offset)%4]==3)
+      a[i]=elem3;
+  }
+  for(i=0;i<4;i++){
+    buf[4*i+index]=a[i];
+  }
+
+  //printf("\n");
+  return;
+}
+
+void mixColumns(uint8_t buf[]){
+  int i;
+  for(i=0;i<4;i++)
+    mixColumn(buf,i);
+
+  return;
+}
+
