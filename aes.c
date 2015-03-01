@@ -34,7 +34,7 @@ const uint8_t sbox[256] = {
     0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68,
     0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
 };
-const uint8_t sboxinv[256] = {
+const uint8_t inv_sbox[256] = {
     0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38,
     0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
     0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87,
@@ -82,6 +82,19 @@ void subByte(uint8_t buf[]){
 
   return;
 }
+void inv_subByte(uint8_t buf[]){
+  int i;
+  for(i=0;i<16;i++){
+    int col=buf[i]&0x0f;
+    int row=(buf[i]&0xf0)>>4;
+    //printf("col: %x, row: %x\n",col,row);
+    //printf("%2x ||  ",buf[i]);
+    buf[i]=inv_sbox[row*16+col];
+    //printf("%2x\n",buf[i]);
+  }
+
+  return;
+}
 
 void shiftRows(uint8_t buf[]){
   uint8_t aux1,aux2;
@@ -91,49 +104,128 @@ void shiftRows(uint8_t buf[]){
   return;
 }
 
-void multiply_GF(uint8_t *elem, uint8_t *elem2,uint8_t *elem3){
-  *elem2=*elem<<1;
-  *elem3=*elem2^*elem;
-}
-
-
-void mixColumn(uint8_t buf[], int offset){
-  assert(offset<4&&offset>=0);
-
-  uint8_t a[4],elem2,elem3;
-  int i,index=offset;
-
-  for(i=0;i<4;i++){
-    a[i]=buf[4*i+index];
-    //printf("%2x",a[i]);
-  }
-  //printf("\n");
-
-  for(i=0;(i-offset<0);i++)offset-=4;
-
-  int mul[4]={2,3,1,1};
-
-  for(i=0;i<4;i++){
-    multiply_GF(&a[i],&elem2,&elem3);
-    //printf("%x",mul[(i-offset)%4]);
-    if(mul[(i-offset)%4]==2)
-      a[i]=elem2;
-    else if(mul[(i-offset)%4]==3)
-      a[i]=elem3;
-  }
-  for(i=0;i<4;i++){
-    buf[4*i+index]=a[i];
-  }
-
-  //printf("\n");
+void inv_shiftRows(uint8_t buf[]){
+  uint8_t aux1,aux2;
+  aux1=buf[7]; buf[7]=buf[6]; buf[6]=buf[5]; buf[5]=buf[4]; buf[4]=aux1; // Second row.
+  aux1=buf[11]; aux2=buf[10]; buf[11]=buf[9]; buf[10]=buf[8]; buf[9]=aux1; buf[8]=aux2; //Third row.
+  aux1=buf[15]; aux2=buf[14]; buf[15]=buf[12]; buf[14]=aux1; buf[12]=buf[13]; buf[13]=aux2; //Fourth row.
   return;
 }
+
+uint8_t mul_GF(uint8_t a, uint8_t b){
+  uint8_t p=0x00,counter,high_bit;
+  for(counter=0;counter<8;counter++){
+    if(b&1) p^=a;
+    high_bit=(a&0x80);
+    a<<=1;
+    if(high_bit==0x80) a^=0x1b;
+    b>>=1;
+  }
+  return p;
+}
+
+void mixColumn(uint8_t buf[]){
+  /*
+    buf[0]=mul_GF(buf[0],2)^mul_GF(buf[1],3)^mul_GF(buf[2],1)^mul_GF(buf[3],1);
+    buf[1]=mul_GF(buf[0],1)^mul_GF(buf[1],2)^mul_GF(buf[2],3)^mul_GF(buf[3],1);
+    buf[2]=mul_GF(buf[0],1)^mul_GF(buf[1],1)^mul_GF(buf[2],2)^mul_GF(buf[3],3);
+    buf[3]=mul_GF(buf[0],3)^mul_GF(buf[1],1)^mul_GF(buf[2],1)^mul_GF(buf[3],2);
+  */
+
+  int i;
+  uint8_t a[4];
+
+  for(i=0;i<4;i++){
+    a[i]=buf[i];
+  }
+
+  for(i=0;i<4;i++){
+    a[i]=mul_GF(buf[(i)%4],2)^mul_GF(buf[(i+1)%4],3)^mul_GF(buf[(i+2)%4],1)^mul_GF(buf[(i+3)%4],1);
+  }
+
+  for(i=0;i<4;i++){
+    buf[i]=a[i];
+  }
+
+  return;
+}
+  
+
 
 void mixColumns(uint8_t buf[]){
-  int i;
-  for(i=0;i<4;i++)
-    mixColumn(buf,i);
+  int i,j;
+  uint8_t col[4];
+  for(i=0;i<4;i++){
+    for(j=0;j<4;j++){
+      col[j]=buf[4*j+i];
+  //    printf("%2x ",col[j]);
+    }
+
+  //  printf("\n");
+    mixColumn(col);
+
+    for(j=0;j<4;j++){
+      buf[4*j+i]=col[j];
+  //    printf("%2x ",col[j]);
+    }
+  //  printf("\n\n");
+  }
 
   return;
 }
 
+void inv_mixColumn(uint8_t buf[]){
+  /*
+  buf[0]=mul_GF(buf[0],0x0e)^mul_GF(buf[1],0x0b)^mul_GF(buf[2],0x0d)^mul_GF(buf[3],0x09);
+  buf[1]=mul_GF(buf[0],0x09)^mul_GF(buf[1],0x0e)^mul_GF(buf[2],0x0b)^mul_GF(buf[3],0x0d);
+  buf[2]=mul_GF(buf[0],0x0d)^mul_GF(buf[1],0x09)^mul_GF(buf[2],0x0e)^mul_GF(buf[3],0x0b);
+  buf[3]=mul_GF(buf[0],0x0b)^mul_GF(buf[1],0x0d)^mul_GF(buf[2],0x09)^mul_GF(buf[3],0x0e);
+  */
+  int i;
+  uint8_t a[4];
+
+  for(i=0;i<4;i++){
+    a[i]=buf[i];
+  }
+
+  for(i=0;i<4;i++){
+    a[i]=mul_GF(buf[(i)%4],14)^mul_GF(buf[(i+1)%4],11)^mul_GF(buf[(i+2)%4],13)^mul_GF(buf[(i+3)%4],9);
+  }
+
+  for(i=0;i<4;i++){
+    buf[i]=a[i];
+  }
+
+  return;
+}
+
+void inv_mixColumns(uint8_t buf[]){
+  int i,j;
+  uint8_t col[4];
+
+  for(i=0;i<4;i++){
+    for(j=0;j<4;j++){
+      col[j]=buf[4*j+i];
+  //    printf("%2x ",col[j]);
+    }
+
+  //  printf("\n");
+    inv_mixColumn(col);
+
+    for(j=0;j<4;j++){
+      buf[4*j+i]=col[j];
+  //    printf("%2x ",col[j]);
+    }
+  //  printf("\n\n");
+  }
+
+  return;
+}
+
+void addRoundKey(uint8_t buf[], uint8_t key[]){
+  int i;
+  for(i=0;i<16;i++)
+    buf[i]^=key[i];
+
+  return;
+}
